@@ -33,39 +33,65 @@ def normalize_keys(row: dict) -> dict:
     return {key.replace(" ", "_"): value for key, value in row.items()}
 
 
-def check_for_empty(row: dict) -> dict:
-    return {key: value for key, value in row.items() if value != ""}
-
-def check_type(value: str, schema: str):
-    print(f"{value}, {schema}")
-    if schema == "Integer":
-        return int(value)
-    elif schema == "Boolean":
-        return bool(value)
-    elif schema == "String":
-        return str(value)
-    else:
-        return value
+def is_used(row: dict) -> bool:
+    return row["unused"] is not True
 
 
 def convert_types(table: dict, schema_table: dict) -> dict:
-    schema = schema_table["id"]["type"]
-    return {key: check_type(value, schema_table[key]["type"]) for key, value in table.items()}
+    return {key: convert_value(value, schema_table[key]) for key, value in table.items()}
 
-tables = load_patch(latest_patch_dir())
 
-# unit_rows = tables["Unit"]["rows"]        # list of 152 dicts
-# unit_schema = tables["Unit"]["schema"]    # dict of 45 field specs
-# print(unit_rows[43]["id"], unit_schema["id"])
+def convert_value(value: str, schema_dict: dict):
+    if "isList" in schema_dict:
+        if value is None or value == "":
+            return []
+        return [convert_scalar(item.strip(), schema_dict["type"]) for item in value.split(schema_dict["delimiter"])]
+    return convert_scalar(value, schema_dict["type"])
 
-for name, table in tables.items():
-    table["rows"] = [normalize_keys(row) for row in table["rows"]]
-    table["rows"] = [check_for_empty(row) for row in table["rows"]]
-    table["rows"] = [convert_types(row, table["schema"]) for row in table["rows"]]
-    rows = table["rows"]
-    schema = table["schema"]
-    for row in rows:
-        for key, value in row.items():
-            print(f"{key}: {value}")
 
-print("=== End ===")
+def convert_scalar(value: str, schema: str):
+    if value is None or value == "":
+        return None
+    if schema == "Integer":
+        return int(value)
+    if schema == "Boolean":
+        if value == "1":
+            return True
+        else:
+            return False
+    if schema == "String":
+        return str(value)
+    return value
+
+
+def process_data(tables: dict) -> dict:
+    for name, table in tables.items():
+        table["rows"] = [normalize_keys(row) for row in table["rows"]]
+        table["rows"] = [convert_types(row, table["schema"]) for row in table["rows"]]
+        if name == "Unit":
+            table["rows"] = [row for row in table["rows"] if is_used(row)]
+        rows = table["rows"]
+        schema = table["schema"]
+    return tables
+
+
+### TESTING ###
+def check(tables: dict):
+    units = {u["id"]: u for u in tables["Unit"]["rows"]}   # look up units by id
+    angel = units["angel"]
+
+    assert len(units) == 147
+    assert angel["hp"] == 225 and isinstance(angel["hp"], int)
+    assert angel["immunities"] == ["overTime_effect_blood", "overTime_effect_poison", "buff_effect_poison"]
+    assert angel["wood_cost"] is None
+    assert all(isinstance(u["immunities"], list) for u in units.values())   # never None
+    print("step 1-4 checks passed")
+
+
+def main() -> None:
+    tables = process_data(load_patch(latest_patch_dir()))
+    check(tables)
+
+
+if __name__ == "__main__":
+    main()
