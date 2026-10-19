@@ -29,8 +29,43 @@ def load_patch(patch_dir: Path) -> dict[str, dict]:
     return tables
 
 
+def normalize_keys(row: dict) -> dict:
+    return {key.replace(" ", "_"): value for key, value in row.items()}
+
+
+def check_for_empty(row: dict) -> dict:
+    return {key: value for key, value in row.items() if value != ""}
+
+def check_type(value: str, schema: str):
+    print(f"{value}, {schema}")
+    if schema == "Integer":
+        return int(value)
+    elif schema == "Boolean":
+        return bool(value)
+    elif schema == "String":
+        return str(value)
+    else:
+        return value
+
+
+def convert_types(table: dict, schema_table: dict) -> dict:
+    schema = schema_table["id"]["type"]
+    return {key: check_type(value, schema_table[key]["type"]) for key, value in table.items()}
+
 tables = load_patch(latest_patch_dir())
 
-unit_rows = tables["Unit"]["rows"]        # list of 152 dicts
-unit_schema = tables["Unit"]["schema"]    # dict of 45 field specs
-print(unit_rows[43]["id"], unit_schema["id"])
+# unit_rows = tables["Unit"]["rows"]        # list of 152 dicts
+# unit_schema = tables["Unit"]["schema"]    # dict of 45 field specs
+# print(unit_rows[43]["id"], unit_schema["id"])
+
+for name, table in tables.items():
+    table["rows"] = [normalize_keys(row) for row in table["rows"]]
+    table["rows"] = [check_for_empty(row) for row in table["rows"]]
+    table["rows"] = [convert_types(row, table["schema"]) for row in table["rows"]]
+    rows = table["rows"]
+    schema = table["schema"]
+    for row in rows:
+        for key, value in row.items():
+            print(f"{key}: {value}")
+
+print("=== End ===")
