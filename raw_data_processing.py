@@ -1,7 +1,13 @@
 import json
 from pathlib import Path
+import re
+import html
+from collections import Counter
 
-from download_raw_data import RAW_DIR, version_key  # reuse, don't copy
+from download_raw_data import RAW_DIR, version_key
+
+TEXT_FIELDS = ("name", "description", "bonus_description")
+MARKUP = r"&#?\w+;|<[^>]+>|\[\[|\]\]|'{2,}"
 
 
 def load_json(path: Path):
@@ -64,14 +70,33 @@ def convert_scalar(value: str, schema: str):
     return value
 
 
+def clean_text(text: str | None) -> str | None:
+    if text is None:
+        return None
+    text = html.unescape(text)  # &lt;br/&gt; -> <br/>, &amp; -> &
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)  # <br>, <br/>, <br /> -> line break
+    text = re.sub(r"<[^>]+>", "", text)  # drop other tags, keep the text inside
+    text = re.sub(r"[ \t]+", " ", text)  # collapse runs of spaces
+    text = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", r"\1", text)  # [[target|label]] -> label, [[x]] -> x
+    text = re.sub(r"'{2,}", "", text)  # ''italic'' and '''bold''' markers
+    text = re.sub(r" *\n *", "\n", text)  # no spaces around line breaks
+    return text.strip()
+
+
+def clean_row(row: dict) -> dict:
+    return {key: clean_text(value) if key in TEXT_FIELDS else value for key, value in row.items()}
+
+
 def process_data(tables: dict) -> dict:
     for name, table in tables.items():
         table["rows"] = [normalize_keys(row) for row in table["rows"]]
         table["rows"] = [convert_types(row, table["schema"]) for row in table["rows"]]
         if name == "Unit":
             table["rows"] = [row for row in table["rows"] if is_used(row)]
-        rows = table["rows"]
-        schema = table["schema"]
+        if name == "Translation":
+            table["rows"] = [clean_row(row) for row in table["rows"]]
+        # rows = table["rows"]
+        # schema = table["schema"]
     return tables
 
 
@@ -79,13 +104,21 @@ def process_data(tables: dict) -> dict:
 def check(tables: dict):
     units = {u["id"]: u for u in tables["Unit"]["rows"]}   # look up units by id
     angel = units["angel"]
-
+    # Checking unused units
     assert len(units) == 147
+    # Checking types
     assert angel["hp"] == 225 and isinstance(angel["hp"], int)
+    # Checking lists
     assert angel["immunities"] == ["overTime_effect_blood", "overTime_effect_poison", "buff_effect_poison"]
+    # Checking missing values
     assert angel["wood_cost"] is None
+    # Checking lists
     assert all(isinstance(u["immunities"], list) for u in units.values())   # never None
-    print("step 1-4 checks passed")
+    # Converting html
+    leftover = [t for row in tables["Translation"]["rows"] for f in TEXT_FIELDS
+                if (t := row[f]) and re.search(MARKUP, t)]
+    assert not leftover, f"{len(leftover)} texts still contain markup, e.g. {leftover[0][:120]!r}"
+    print("step 1-5 checks passed")
 
 
 def main() -> None:
