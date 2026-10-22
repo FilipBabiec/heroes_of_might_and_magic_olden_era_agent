@@ -3,8 +3,10 @@ from pathlib import Path
 import re
 import html
 from collections import Counter
+import shutil
+from datetime import datetime, timezone
 
-from download_raw_data import RAW_DIR, version_key
+from download_raw_data import RAW_DIR, version_key, save_json
 
 TEXT_FIELDS = ("name", "description", "bonus_description")
 MARKUP = r"&#?\w+;|<[^>]+>|\[\[|\]\]|'{2,}"
@@ -12,6 +14,8 @@ NEEDED_TYPES = {"unit", "unit_ability", "spell", "spell_rank",
                 "artifact", "artifact_narrative", "artifact_upgrade",
                 "attack_archetype", "movement"}
 MOVEMENT_REFS = {"base_passive_flyer", "base_passive_blink"}
+PROCESSED_DIR = Path("data/processed")
+RECORD_LISTS = ("units", "abilities", "shared_links", "spells", "artifacts")
 
 
 def load_json(path: Path):
@@ -168,6 +172,48 @@ def build_abilities(active_ability_rows: list[dict], passive_ability_rows: list[
     return abilities, no_unit, no_text
 
 
+def build_spells(spell_rows: list[dict], text: dict) -> tuple[list[dict], list[str], list[str]]:
+    spells, missing, without_levels = [], [], []
+    for spell in spell_rows:
+        t = text.get((spell["id"], "spell", None))
+        if t is None:
+            missing.append(spell["id"])
+        levels = []
+        for level in range(1, 5):
+            r = text.get((spell["id"], "spell_rank", str(level)))  # variant is a string
+            if r is not None:
+                levels.append({"level": level, "description": r["description"],
+                               "bonus": r["bonus_description"]})
+        if not levels:
+            without_levels.append(spell["id"])
+
+        spells.append({
+            **spell,
+            "name": t["name"] if t else None,
+            "levels": levels,
+            "description": t["description"] if t else None
+        })
+    return spells, missing, without_levels
+
+
+def build_artifacts(artifact_rows: list[dict], text: dict) -> tuple[list[dict], list[str]]:
+    artifacts, missing = [], []
+    for artifact in artifact_rows:
+        t_desc = text.get((artifact["id"], "artifact", None))
+        t_upg = text.get((artifact["id"], "artifact_upgrade", None))
+        t_narr = text.get((artifact["id"], "artifact_narrative", None))
+        if t_desc is None:
+            missing.append(artifact["id"])
+        artifacts.append({
+            **artifact,
+            "name": t_desc["name"] if t_desc else None,
+            "description": t_desc["description"] if t_desc else None,
+            "lore": t_narr["description"] if t_narr else None,
+            "upgrade": t_upg["description"] if t_upg else None
+        })
+    return artifacts, missing
+
+
 def build_shared_links(units: list[dict], abilities_by_id: dict[str, dict], text: dict) -> tuple[list[dict], list[str]]:
     """Unit <-> shared-ability pairs. Movement and attack types are skipped (they live on the unit)."""
     links, unresolved = [], set()
@@ -191,13 +237,7 @@ def process_data(tables: dict) -> dict:
             table["rows"] = [row for row in table["rows"] if is_used(row)]
         if name == "Translation":
             table["rows"] = [clean_row(row) for row in table["rows"]]
-        # rows = table["rows"]
-        # schema = table["schema"]
     return tables
-
-
-def build_final_tables(tables: dict) -> dict:
-    pass
 
 
 ### TESTING ###
@@ -234,18 +274,49 @@ def build_all(tables: dict) -> dict:
 
     links, unresolved = build_shared_links(units, abilities_by_id, text)
 
+    spells, spells_without_name, spells_without_rules_text = build_spells(tables["Spell"]["rows"], text)
+
+    artifacts, artifacts_without_name = build_artifacts(tables["Artifact"]["rows"], text)
+
     return {
         "units": units,
         "abilities": abilities,
         "shared_links": links,
+        "spells": spells,
+        "artifacts": artifacts,
         "report": {
             "units_without_text": units_without_text,
             "abilities_of_unused_units": of_unused_units,
             "abilities_without_text": abilities_without_text,
             "unresolved_references": unresolved,
+            "spells_without_text": spells_without_name,
+            "spells_without_levels": spells_without_rules_text,
+            "artifacts_without_name": artifacts_without_name
         },
     }
 
+
+def save_processed(result: dict, raw_dir: Path) -> Path:
+    """Step 7: write each record list + report + manifest to data/processed/<patch>/."""
+    final_dir = PROCESSED_DIR / raw_dir.name
+    tmp_dir = PROCESSED_DIR / f"{raw_dir.name}.tmp"
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)                       # leftover from a crashed run
+
+    for name in RECORD_LISTS:
+        save_json(result[name], tmp_dir / f"{name}.json")
+    save_json(result["report"], tmp_dir / "report.json")
+    save_json({
+        "patch": raw_dir.name.removeprefix("v"),
+        "processed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "source": raw_dir.as_posix(),
+        "row_counts": {name: len(result[name]) for name in RECORD_LISTS},
+    }, tmp_dir / "manifest.json")
+
+    if final_dir.exists():
+        shutil.rmtree(final_dir)                     # reprocessing replaces the old output
+    tmp_dir.rename(final_dir)
+    return final_dir
 
 def check_invariants(tables: dict, result: dict) -> None:
     """Rules that must hold for every patch. A failure means a bug in this code."""
@@ -257,6 +328,7 @@ def check_invariants(tables: dict, result: dict) -> None:
     assert len(abilities) + len(report["abilities_of_unused_units"]) == ability_input, "abilities lost"
     assert all(u["attack_type"] is not None for u in units), "unit without attack type"
     assert report["unresolved_references"] == [], f"unknown references: {report['unresolved_references']}"
+    assert len(result["artifacts"]) == len(tables["Artifact"]["rows"]), "artifacts lost"
 
 
 def check_known_values(result: dict) -> None:
@@ -273,23 +345,39 @@ def check_known_values(result: dict) -> None:
     angel_upg_links = {l["ability_id"] for l in result["shared_links"] if l["unit_id"] == "angel_upg"}
     assert angel_upg_links == {"common_attack_1", "base_passive_sharpshooter", "base_passive_duelist"}
 
+    spells = {s["id"]: s for s in result["spells"]}
+    hw = spells[("day_1_magic"
+                 "_healing_water")]
+    assert hw["name"] == "Healing Water"
+    assert [lvl["level"] for lvl in hw["levels"]] == [1, 2, 3, 4]
+    assert hw["levels"][1]["bonus"] == "HP per Spell Power: 5 > 10."
+
+    artifacts = {a["id"]: a for a in result["artifacts"]}
+    sash = artifacts["ambassadors_word_ambassadors_sash_artifact"]
+    assert sash["name"] == "Ambassador's Sash"
+    assert sash["description"] == "+10% to Persuasion Power in Diplomacy."
+
 
 def print_summary(result: dict) -> None:
     shared = sum(a["shared"] for a in result["abilities"])
-    print(f"units: {len(result['units'])}")
-    print(f"abilities: {len(result['abilities'])} ({shared} shared)")
-    print(f"shared-ability links: {len(result['shared_links'])}")
+    print(f"Units: {len(result['units'])}")
+    print(f"Abilities: {len(result['abilities'])} ({shared} shared)")
+    print(f"Shared-ability links: {len(result['shared_links'])}")
+    print(f"Spells: {len(result['spells'])}")
+    print(f"Artifacts: {len(result['artifacts'])}")
     for name, items in result["report"].items():
         print(f"{name}: {len(items)} {items if 0 < len(items) <= 10 else ''}")
 
 
 def main() -> None:
-    tables = process_data(load_patch(latest_patch_dir()))
+    raw_dir = latest_patch_dir()
+    tables = process_data(load_patch(raw_dir))
     result = build_all(tables)
-    check_invariants(tables, result)
+    check_invariants(tables, result)  # nothing is written if these fail
     check_known_values(result)
+    out_dir = save_processed(result, raw_dir)
     print_summary(result)
-
+    print(f"saved to {out_dir.resolve()}")
 
 if __name__ == "__main__":
     main()
