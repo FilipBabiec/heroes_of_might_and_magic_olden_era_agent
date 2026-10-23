@@ -3,6 +3,7 @@ Input: data/processed/v<patch>/*.json
 Output: data/hoe.sqlite, deleted and rebuilt on every run
 Done when: the row count of each table equals manifest.json, and a few hand-written SQL queries return what the wiki shows
 '''
+
 import json
 import sqlite3
 from pathlib import Path
@@ -86,10 +87,15 @@ def build_database(data: dict[str, list[dict]]) -> None:
     con.close()
 
 
+def run_sql(con: sqlite3.Connection):
+    for row in con.execute("SELECT faction, COUNT(*) AS units, ROUND(AVG(hp), 1) AS avg_hp FROM units GROUP BY faction ORDER BY avg_hp DESC;"):
+        print(row)
+
+
 def main() -> None:
     data = load_data()
     build_database(data)
-    print("END")
+    # run_sql(sqlite3.connect(DB_PATH))
 
 if __name__ == "__main__":
     main()
