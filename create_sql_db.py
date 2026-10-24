@@ -15,6 +15,7 @@ SQL_TYPES = {bool: "INTEGER", int: "INTEGER", float: "REAL", str: "TEXT", list: 
 DB_PATH = Path("data/hoe.sqlite")
 
 
+
 def load_data() -> dict:
     dirs = [p for p in PROCESSED_DIR.glob("v*") if p.is_dir() and not p.name.endswith(".tmp")]
     if not dirs:

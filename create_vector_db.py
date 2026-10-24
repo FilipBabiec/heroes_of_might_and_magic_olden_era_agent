@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 
 from raw_data_processing import PROCESSED_DIR, load_json
-from download_raw_data import version_key
+from download_raw_data import version_key, save_json
 from create_sql_db import load_data
 
 
@@ -115,12 +115,7 @@ def build_documents(data: dict):
 def main() -> None:
     data = load_data()
     docs = build_documents(data)
-    print(docs)
-    ids = [d["id"] for d in docs]
-    assert len(ids) == len(set(ids)), "duplicate document ids"
-    assert not any("None" in d["text"] for d in docs), "'None' leaked into a document text"
-    print(Counter(d["metadata"]["doc_type"] for d in docs))
-    print("END")
+    save_json(docs, PROCESSED_DIR / "V0.81.02/documents.json")
 
 if __name__ == "__main__":
     main()
