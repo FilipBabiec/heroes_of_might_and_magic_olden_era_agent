@@ -5,12 +5,13 @@ from pathlib import Path
 import torch
 import hashlib
 from collections import defaultdict
+from create_vector_db import document_embeddings
 
 
 CANDIDATES = {
     "MiniLM (baseline)": ("sentence-transformers/all-MiniLM-L6-v2", {}),
     "bge-m3":            ("BAAI/bge-m3", {}),
-    "Qwen3-0.6B":        ("Qwen/Qwen3-Embedding-0.6B", {"prompt_name": "query"}),
+    "Qwen3-0.6B":        ("Qwen/Qwen3-Embedding-0.6B", {"prompt_name": "query"}),   # chosen model: qwen3 (4/6 meaning - with one false positive, 0/2 slang - which is expected)
 }
 TEST_QUERIES = [
     # (question, acceptable ids, category)
@@ -33,19 +34,6 @@ TEST_QUERIES = [
     ("What gives spell immunity against effects killing additional units?",
      {'mech_guard_passive_1'}, "meaning")
 ]
-
-
-def document_embeddings(model, model_id: str, docs: list[dict]) -> np.ndarray:
-    texts = [d["text"] for d in docs]
-    settings = "float32|normalized"
-    fingerprint = hashlib.md5((settings + "\n" + "\n".join(texts)).encode("utf-8")).hexdigest()[:8]
-    cache = Path("data/eval_cache") / f"{model_id.replace('/', '__')}_{fingerprint}.npy"
-    if cache.exists():
-        return np.load(cache)
-    emb = model.encode(texts, normalize_embeddings=True, show_progress_bar=True)
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    np.save(cache, emb)
-    return emb
 
 
 def rank_of_expected(scores_row, doc_ids, expected):
