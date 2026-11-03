@@ -1,5 +1,6 @@
 import pytest
 from tools import query_units
+from tools import search_rules
 
 
 def test_faction_filter():
@@ -69,3 +70,35 @@ def test_bad_inputs_are_rejected(kwargs):
 
 def test_limit_25_is_allowed():
     assert len(query_units(limit=25)) <= 25
+
+
+def find_name(results: list[dict], name: str, within: int = 3) -> dict:
+    top = results[:within]
+    matches = [r for r in top if r["name"] == name]
+    assert matches, f"{name!r} not in top {within}: {[r['name'] for r in top]}"
+    return matches[0]
+
+
+def test_search_swift_strike():
+    first = search_rules("enemies do not counterattack", n=3)[0]
+    assert first["name"] == "Swift Strike"
+    assert first["type"] == "ability"
+    assert first["units"], "shared ability should list its units"
+
+
+def test_search_healing_water_levels():
+    spell = find_name(search_rules("restore HP of a friendly creature", n=5), "Healing Water")
+    assert [lvl["level"] for lvl in spell["levels"]] == [1, 2, 3, 4]
+    assert spell["levels"][1]["change"] == "HP per Spell Power: 5 > 10."
+
+
+def test_search_ambassadors_sash():
+    artifact = find_name(search_rules("persuasion in diplomacy", n=5), "Ambassador's Sash")
+    assert artifact["description"] == "+10% to Persuasion Power in Diplomacy."
+
+
+@pytest.mark.parametrize("n", [0, 11])
+def test_search_bad_n(n):
+    with pytest.raises(ValueError):
+        search_rules("anything", n=n)
+

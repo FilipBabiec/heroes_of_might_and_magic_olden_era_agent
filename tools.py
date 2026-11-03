@@ -18,9 +18,17 @@ COLUMNS = ("id, name, faction, tier, hp, offence, defence, damage_min, damage_ma
            "gold_cost, wood_cost, ore_cost, mercury_cost, dust_cost, crystal_cost, gemstone_cost")
 FACTION_DISPLAY = {unit_id: name.capitalize() for name, unit_id in FACTION_IDS.items()}
 DB_PATH = "data/hoe.sqlite"
+NO_TEXT = "No description available in the game data."
 
 
 assert set(FACTION_IDS) == set(get_args(Faction)), "FACTION_IDS and Faction disagree"
+
+
+def connect_ro() -> sqlite3.Connection:
+    """Read-only connection with rows accessible by column name."""
+    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    return con
 
 
 def check_choice(name: str, value, allowed: tuple) -> None:
@@ -41,8 +49,26 @@ def tool_setup():
 
 
 # input: search text + optional filters | output: a list of compact results, best first, shaped by type
-def search_rules(query: str, doc_type: str | None = None, faction: str | None = None, n: int = 5):
-    pass
+def search_rules(query: str, n: int = 5) -> list[dict]:
+    """Find abilities, spells and artifacts whose rules text matches the query.
+    Use the game's official terms (e.g. 'positive effects', not 'buffs')."""
+    check_int_range("n", n, 1, 10)
+
+    embedding = get_model().encode(query, prompt_name="query", normalize_embeddings=True)
+    results = get_collection().query(query_embeddings=embedding, n_results=n)
+    hits = [{"id": doc_id, "doc_type": meta["doc_type"], "similarity": round(1 - dist / 2, 2)}
+            for doc_id, dist, meta in zip(results["ids"][0], results["distances"][0], results["metadatas"][0])]
+
+    con = connect_ro()
+    try:
+        records = fetch_abilities(con, [h["id"] for h in hits if h["doc_type"] == "ability"])
+        records.update(fetch_spells(con, [h["id"] for h in hits if h["doc_type"] == "spell"]))
+        records.update(fetch_artifacts(con, [h["id"] for h in hits if h["doc_type"] == "artifact"]))
+    finally:
+        con.close()
+
+    # walk the hits in Chroma's ranking; the SQL IN query returned rows in arbitrary order
+    return [{**records[h["id"]], "similarity": h["similarity"]} for h in hits if h["id"] in records]
 
 
 # input: structured filters (faction, tier, sort...) | output:
@@ -173,5 +199,82 @@ def fetch_ability_names(con: sqlite3.Connection, unit_ids: list[str]) -> dict[st
     return names
 
 
-for unit in query_units(faction="temple", tier_min=7, tier_max=7, sort_by="hp", limit=5):
-    print(unit)
+def fetch_abilities(con: sqlite3.Connection, ability_ids: list[str]) -> dict[str, dict]:
+    """Compact records for the given abilities: {ability_id: record}."""
+    if not ability_ids:
+        return {}
+    placeholders = ", ".join("?" * len(ability_ids))
+
+    rows = con.execute(f"""SELECT ability_id, name, kind, shared, unit_name, faction, tier, description
+                           FROM abilities WHERE ability_id IN ({placeholders})""", ability_ids).fetchall()
+
+    # abilities -> units (the reverse direction of fetch_ability_names)
+    unit_rows = con.execute(f"""SELECT l.ability_id, u.name FROM shared_links l
+                                JOIN units u ON u.id = l.unit_id
+                                WHERE l.ability_id IN ({placeholders})
+                                ORDER BY u.name""", ability_ids).fetchall()
+    units_by_ability = defaultdict(list)
+    for ability_id, unit_name in unit_rows:
+        units_by_ability[ability_id].append(unit_name)
+
+    records = {}
+    for row in rows:
+        record = {
+            "type": "ability",
+            "name": row["name"],
+            "kind": row["kind"],
+            "description": row["description"] or "No description available in the game data.",
+        }
+        if row["shared"]:
+            record["units"] = units_by_ability[row["ability_id"]]
+        else:
+            record["unit"] = row["unit_name"]
+            record["faction"] = FACTION_DISPLAY.get(row["faction"], row["faction"])
+            record["tier"] = row["tier"]
+        records[row["ability_id"]] = record
+    return records
+
+
+def fetch_spells(con: sqlite3.Connection, spell_ids: list[str]) -> dict[str, dict]:
+    """Compact spell records with their levels, in level order: {spell_id: record}."""
+    if not spell_ids:
+        return {}
+    placeholders = ", ".join("?" * len(spell_ids))
+    rows = con.execute(f"SELECT id, name, school, rank FROM spells WHERE id IN ({placeholders})",
+                       spell_ids).fetchall()
+    level_rows = con.execute(f"""SELECT spell_id, level, description, bonus FROM spell_levels
+                                 WHERE spell_id IN ({placeholders})
+                                 ORDER BY spell_id, level""", spell_ids).fetchall()
+    levels_by_spell = defaultdict(list)
+    for lvl in level_rows:
+        level = {"level": lvl["level"], "description": lvl["description"] or NO_TEXT}
+        if lvl["bonus"]:
+            level["change"] = lvl["bonus"]
+        levels_by_spell[lvl["spell_id"]].append(level)
+    return {row["id"]: {"type": "spell",
+                        "name": row["name"],
+                        "school": (row["school"] or "").capitalize() or None,
+                        "tier": row["rank"],
+                        "levels": levels_by_spell[row["id"]]}
+            for row in rows}
+
+
+def fetch_artifacts(con: sqlite3.Connection, artifact_ids: list[str]) -> dict[str, dict]:
+    """Compact artifact records: {artifact_id: record}."""
+    if not artifact_ids:
+        return {}
+    placeholders = ", ".join("?" * len(artifact_ids))
+    rows = con.execute(f"""SELECT id, name, rarity, slot, description, upgrade
+                           FROM artifacts WHERE id IN ({placeholders})""", artifact_ids).fetchall()
+    records = {}
+    for row in rows:
+        record = {"type": "artifact", "name": row["name"], "rarity": row["rarity"],
+                  "slot": row["slot"], "description": row["description"] or NO_TEXT}
+        if row["upgrade"]:
+            record["upgrade"] = row["upgrade"]
+        records[row["id"]] = record
+    return records
+
+
+for r in search_rules("enemies do not counterattack", n=3):
+    print(r)
