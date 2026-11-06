@@ -3,7 +3,10 @@ import sqlite3
 from pathlib import Path
 from typing import Literal, get_args
 from collections import defaultdict
-
+from functools import cache
+import chromadb
+import torch
+from sentence_transformers import SentenceTransformer
 from create_sql_db import DB_PATH
 
 Faction = Literal["temple", "necropolis", "grove", "hive", "schism", "dungeon", "neutral"]
@@ -19,13 +22,29 @@ COLUMNS = ("id, name, faction, tier, hp, offence, defence, damage_min, damage_ma
 FACTION_DISPLAY = {unit_id: name.capitalize() for name, unit_id in FACTION_IDS.items()}
 DB_PATH = "data/hoe.sqlite"
 NO_TEXT = "No description available in the game data."
+MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
+CHROMA_DIR = Path("data/chroma")
+COLLECTION = "hoe_rules"
 
 
 assert set(FACTION_IDS) == set(get_args(Faction)), "FACTION_IDS and Faction disagree"
 
 
-def connect_ro() -> sqlite3.Connection:
-    """Read-only connection with rows accessible by column name."""
+@cache
+def get_model():
+    model = SentenceTransformer(MODEL_ID, model_kwargs={"dtype": torch.float32})
+    return model
+
+
+@cache
+def get_collection():
+    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    collection = client.get_collection(COLLECTION)
+    assert collection.metadata["embedding_model"] == MODEL_ID, "collection built with another model"
+    return collection
+
+
+def connect_read_only() -> sqlite3.Connection:
     con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     return con
@@ -34,6 +53,11 @@ def connect_ro() -> sqlite3.Connection:
 def check_choice(name: str, value, allowed: tuple) -> None:
     if value is not None and value not in allowed:
         raise ValueError(f"Invalid {name} {value!r}. Allowed: {', '.join(allowed)}.")
+
+
+def check_int_range(name: str, n: int, min: int, max: int):
+    if n not in range(min,max+1):
+        raise ValueError(f"Invalid {name} value: {n}. Allowed: {min}-{max}")
 
 
 def check_tier_values(tier_min: int | None = None, tier_max: int | None = None):
@@ -59,7 +83,7 @@ def search_rules(query: str, n: int = 5) -> list[dict]:
     hits = [{"id": doc_id, "doc_type": meta["doc_type"], "similarity": round(1 - dist / 2, 2)}
             for doc_id, dist, meta in zip(results["ids"][0], results["distances"][0], results["metadatas"][0])]
 
-    con = connect_ro()
+    con = connect_read_only()
     try:
         records = fetch_abilities(con, [h["id"] for h in hits if h["doc_type"] == "ability"])
         records.update(fetch_spells(con, [h["id"] for h in hits if h["doc_type"] == "spell"]))
@@ -96,7 +120,7 @@ def query_units(
     order_sql, order_params = build_order(sort_by, sort_desc, limit)
     sql = f"SELECT {COLUMNS} FROM units {where_sql} {order_sql}"
 
-    con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
+    con = connect_read_only()
     try:
         con.row_factory = sqlite3.Row
         rows = con.execute(sql, where_params + order_params).fetchall()
@@ -274,7 +298,3 @@ def fetch_artifacts(con: sqlite3.Connection, artifact_ids: list[str]) -> dict[st
             record["upgrade"] = row["upgrade"]
         records[row["id"]] = record
     return records
-
-
-for r in search_rules("enemies do not counterattack", n=3):
-    print(r)

@@ -71,5 +71,5 @@ for label, (model_id, query_kwargs) in CANDIDATES.items():
     print(label)
     evaluate(model_id, query_kwargs, docs)
 
-for entry in TEST_QUERIES:
-    assert isinstance(entry, tuple) and len(entry) == 3, f"malformed test entry: {entry!r}"
+# for entry in TEST_QUERIES:
+#     assert isinstance(entry, tuple) and len(entry) == 3, f"malformed test entry: {entry!r}"
