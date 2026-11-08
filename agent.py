@@ -3,7 +3,7 @@ import json
 from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_ollama import ChatOllama
-from tools import get_model, get_collection
+from tools import get_model, get_collection, get_reranker
 
 
 MODEL = "qwen3:8b"
@@ -76,6 +76,7 @@ def ask(question: str) -> None:
 if __name__ == "__main__":
     get_model()
     get_collection()
+    get_reranker()
     for q in [
         "What are the 5 Temple units with the most HP?",
         "Which units can't be counterattacked?",

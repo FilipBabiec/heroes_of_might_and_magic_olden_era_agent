@@ -8,6 +8,8 @@ import chromadb
 import torch
 from sentence_transformers import SentenceTransformer
 from create_sql_db import DB_PATH
+from sentence_transformers import CrossEncoder
+
 
 Faction = Literal["temple", "necropolis", "grove", "hive", "schism", "dungeon", "neutral"]
 AttackCategory = Literal["melee", "ranged", "reach"]
@@ -25,6 +27,10 @@ NO_TEXT = "No description available in the game data."
 MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
 CHROMA_DIR = Path("data/chroma")
 COLLECTION = "hoe_rules"
+RERANKER_ID = "Qwen/Qwen3-Reranker-0.6B"
+RERANK_INSTRUCTION = ("Given a player's question about the game Heroes of Might and Magic: Olden Era, "
+                      "retrieve the ability, spell or artifact whose effect answers the question")
+CANDIDATES = 30  # stage 1 width: how many embedding hits the reranker gets to see
 
 
 assert set(FACTION_IDS) == set(get_args(Faction)), "FACTION_IDS and Faction disagree"
@@ -42,6 +48,15 @@ def get_collection():
     collection = client.get_collection(COLLECTION)
     assert collection.metadata["embedding_model"] == MODEL_ID, "collection built with another model"
     return collection
+
+
+# We use the device="cpu" so the reranker qwen model use the CPU RAM instead of the VRAM which is also used by the qwen3 model that agent uses.
+# They would compete for VRAM since they would run simultanously and if so they would spill to CPU RAM, and it hinders the speed by much.
+# It is better to allocate the smaller model with simpler task (the reranker) already on the CPU so the bigger model can use freely the GPU.
+@cache
+def get_reranker() -> CrossEncoder:
+    return CrossEncoder(RERANKER_ID, prompts={"game": RERANK_INSTRUCTION},
+                        default_prompt_name="game", device="cpu")
 
 
 def connect_read_only() -> sqlite3.Connection:
@@ -72,16 +87,30 @@ def tool_setup():
     pass
 
 
+def retrieve(query: str, n: int) -> list[dict]:
+    """Stage 1: embeddings narrow 790 docs to CANDIDATES. Stage 2: the reranker picks the top n."""
+    emb = get_model().encode(query, prompt_name="query", normalize_embeddings=True)
+    res = get_collection().query(query_embeddings=emb, n_results=CANDIDATES)
+    ids, docs, metas = res["ids"][0], res["documents"][0], res["metadatas"][0]
+
+    scores = get_reranker().predict([(query, doc) for doc in docs])
+    order = sorted(range(len(ids)), key=lambda i: scores[i], reverse=True)[:n]
+    return [{"id": ids[i], "doc_type": metas[i]["doc_type"], "score": round(float(scores[i]), 2)}
+            for i in order]
+
+
 # input: search text + optional filters | output: a list of compact results, best first, shaped by type
 def search_rules(query: str, n: int = 5) -> list[dict]:
     """Find abilities, spells and artifacts whose rules text matches the query.
     Use the game's official terms (e.g. 'positive effects', not 'buffs')."""
     check_int_range("n", n, 1, 10)
 
-    embedding = get_model().encode(query, prompt_name="query", normalize_embeddings=True)
-    results = get_collection().query(query_embeddings=embedding, n_results=n)
-    hits = [{"id": doc_id, "doc_type": meta["doc_type"], "similarity": round(1 - dist / 2, 2)}
-            for doc_id, dist, meta in zip(results["ids"][0], results["distances"][0], results["metadatas"][0])]
+    # Swapped the raw query and documents embeddings comparison for reranker (2 stage comparison)
+    hits = retrieve(query, n)
+    # embedding = get_model().encode(query, prompt_name="query", normalize_embeddings=True)
+    # results = get_collection().query(query_embeddings=embedding, n_results=n)
+    # hits = [{"id": doc_id, "doc_type": meta["doc_type"], "similarity": round(1 - dist / 2, 2)}
+    #         for doc_id, dist, meta in zip(results["ids"][0], results["distances"][0], results["metadatas"][0])]
 
     con = connect_read_only()
     try:
@@ -91,8 +120,8 @@ def search_rules(query: str, n: int = 5) -> list[dict]:
     finally:
         con.close()
 
-    # walk the hits in Chroma's ranking; the SQL IN query returned rows in arbitrary order
-    return [{**records[h["id"]], "similarity": h["similarity"]} for h in hits if h["id"] in records]
+    # walk the hits in the reranker's order; the SQL IN query returned rows in arbitrary order
+    return [{**records[h["id"]], "score": h["score"]} for h in hits if h["id"] in records]
 
 
 # input: structured filters (faction, tier, sort...) | output:

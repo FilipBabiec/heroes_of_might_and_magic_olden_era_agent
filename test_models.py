@@ -73,3 +73,6 @@ for label, (model_id, query_kwargs) in CANDIDATES.items():
 
 # for entry in TEST_QUERIES:
 #     assert isinstance(entry, tuple) and len(entry) == 3, f"malformed test entry: {entry!r}"
+
+if __name__ == "__main__":
+    main()
