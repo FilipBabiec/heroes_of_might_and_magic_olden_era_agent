@@ -31,6 +31,8 @@ RERANKER_ID = "Qwen/Qwen3-Reranker-0.6B"
 RERANK_INSTRUCTION = ("Given a player's question about the game Heroes of Might and Magic: Olden Era, "
                       "retrieve the ability, spell or artifact whose effect answers the question")
 CANDIDATES = 30  # stage 1 width: how many embedding hits the reranker gets to see
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+RERANK_DTYPE = torch.bfloat16 if DEVICE == "cuda" else torch.float32  # bf16 is fast on GPU, slow on CPU
 
 
 assert set(FACTION_IDS) == set(get_args(Faction)), "FACTION_IDS and Faction disagree"
@@ -38,7 +40,7 @@ assert set(FACTION_IDS) == set(get_args(Faction)), "FACTION_IDS and Faction disa
 
 @cache
 def get_model():
-    model = SentenceTransformer(MODEL_ID, model_kwargs={"dtype": torch.float32})
+    model = SentenceTransformer(MODEL_ID, model_kwargs={"dtype": torch.float32}, device="cpu")
     return model
 
 
@@ -55,8 +57,8 @@ def get_collection():
 # It is better to allocate the smaller model with simpler task (the reranker) already on the CPU so the bigger model can use freely the GPU.
 @cache
 def get_reranker() -> CrossEncoder:
-    return CrossEncoder(RERANKER_ID, prompts={"game": RERANK_INSTRUCTION},
-                        default_prompt_name="game", device="cpu")
+    return CrossEncoder(RERANKER_ID, device=DEVICE, model_kwargs={"dtype": RERANK_DTYPE},
+                        prompts={"game": RERANK_INSTRUCTION}, default_prompt_name="game")
 
 
 def connect_read_only() -> sqlite3.Connection:

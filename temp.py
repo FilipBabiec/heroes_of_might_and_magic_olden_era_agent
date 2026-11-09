@@ -1,21 +1,25 @@
+"""Time the reranker on 30 real pairs, on the GPU and on the CPU."""
+import time
+
+import torch
 from sentence_transformers import CrossEncoder
+
 import tools as t
 
-INSTRUCTION = ("Given a player's question about the game Heroes of Might and Magic: Olden Era, "
-               "retrieve the ability, spell or artifact whose effect answers the question")
-reranker = CrossEncoder("Qwen/Qwen3-Reranker-0.6B",
-                        prompts={"game": INSTRUCTION}, default_prompt_name="game")
-
-q = "Can any creature steal buffs from enemies?"
+q = "creature that takes no damage from spells"
 emb = t.get_model().encode(q, prompt_name="query", normalize_embeddings=True)
-res = t.get_collection().query(query_embeddings=emb, n_results=100)
-ids, docs = res["ids"][0], res["documents"][0]
+docs = t.get_collection().query(query_embeddings=emb, n_results=30)["documents"][0]
+pairs = [(q, d) for d in docs]
 
-scores = reranker.predict([(q, doc) for doc in docs])
-order = sorted(range(len(ids)), key=lambda i: scores[i], reverse=True)
-reranked = [ids[i] for i in order]
-
-print("Devouring Chalice: embedding rank", ids.index("angel_upg_2") + 1,
-      "-> reranked", reranked.index("angel_upg_2") + 1)
-for rank, i in enumerate(order[:8], start=1):
-    print(f"{rank:3}  {float(scores[i]):7.2f}  {ids[i]}")
+print("embedding model is on:", t.get_model().device)
+devices = ["cuda", "cpu"] if torch.cuda.is_available() else ["cpu"]
+for device in devices:
+    rr = CrossEncoder(t.RERANKER_ID, model_kwargs={"dtype": torch.float32}, device=device,
+                      prompts={"game": t.RERANK_INSTRUCTION}, default_prompt_name="game")
+    rr.predict(pairs[:2])  # warm-up, so one-time setup isn't measured
+    start = time.perf_counter()
+    rr.predict(pairs)
+    print(f"{device}: {time.perf_counter() - start:.1f} s for 30 pairs")
+    del rr
+    if device == "cuda":
+        torch.cuda.empty_cache()
