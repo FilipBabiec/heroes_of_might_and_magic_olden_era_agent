@@ -9,8 +9,7 @@ import tools as t
 from agent import agent
 
 
-REWRITE_PROMPT = """
-You turn a player's question about Heroes of Might and Magic: Olden Era into
+REWRITE_PROMPT = """You turn a player's question about Heroes of Might and Magic: Olden Era into
 search terms in the game's official wording. Output ONLY the search terms, on one line.
 Do not answer the question. Keep unit, spell and artifact names unchanged.
 
@@ -30,8 +29,7 @@ Question: Is there a shooter that ignores the range penalty?
 Search terms: ranged attack full damage at any distance
 
 Question: {question}
-Search terms:
-"""
+Search terms:"""
 
 
 CHECK_PROMPT = """You check an answer about the game Heroes of Might and Magic: Olden Era against the tool results it was based on.
@@ -78,13 +76,13 @@ Rules:
 CLASSIFY_PROMPT = """Classify a player's question about the game Heroes of Might and Magic: Olden Era.
 
 Categories:
-- Rules: the question asks for facts from the game data: unit stats, abilities, spells, artifacts
+- rules: the question asks for facts from the game data: unit stats, abilities, spells, artifacts
   or factions. This includes lists and rankings by a stat, even with words like "most", "highest" or "best".
   Examples: "Which unit has the most HP?", "What is the best Offence among Temple units?", "What does Healing Water do?"
-- Advice: the question asks what to choose, build or focus on, how to play a strategy or playstyle,
+- advice: the question asks what to choose, build or focus on, how to play a strategy or playstyle,
   or for the assistant's opinion.
   Examples: "Which faction is the best?", "What should I build for an aggressive army?", "Do you agree that Archangel is better?"
-- Other: the question is not about Olden Era.
+- other: the question is not about Olden Era.
   Example: "What's the weather in Warsaw?"
 
 <question>
@@ -92,13 +90,29 @@ Categories:
 </question>"""
 
 
-ADVICE_PROMPT = """
-You are an assistant for the Heroes of Might and Magic Olden Era game. You provide advice and opinion on the game system and rules.
-You can use tools to obtain specific game data and rules, base your opinions on those information.
-"""
+ADVICE_PROMPT = """You are an assistant for the Heroes of Might and Magic Olden Era game. You provide advice and opinion on the game system and rules.
+You have access to game information searched in the official game database below. Clearly state if you give an opinion or a fact. 
+Use only the facts below, no knowledge from earlier Heroes games.
+The question you have been asked to give an opinion on:
+{prompt}
+
+Additional information form the game's database:
+{additional_info}"""
 
 
-CLASSIFICATION = Literal["Rules","Advice","Other"]
+PLAN_PROMPT = """You are an assistant for the Heroes of Might and Magic Olden Era game. You have been tasked with establishing what facts do 
+you need from the game database to give a meaningful advice and opinion:
+
+{prompt}
+
+Your job is to plan what game information you will need to give the advise and write a question to the search engine tool.
+Your two tools that you have available are: 
+ - 'search_rules' that searches the game system rules - spell descriptions, abilities descriptions, units descriptions and artifacts descriptions. 
+ - 'query_units' tool that returns specific information about the units. This tool searches the SQL database with regular queries.
+Write natural language prompt that covers everything you will need."""
+
+
+CLASSIFICATION = Literal["rules","advice","other"]
 
 class Claim(BaseModel):
     claim: str = Field(description="One single fact or judgment from the answer")
@@ -127,18 +141,22 @@ class ClassifiedQuestion(BaseModel):
 
 
 class State(TypedDict, total=False):
+    prompt: str
     question: str
     classification: CLASSIFICATION
     search_terms: str
     answer: str
     messages: list
     verdict: GroundingVerdict
+    additional_info: str
 
 
 REWRITER = ChatOllama(model="qwen3:8b",temperature=0,reasoning=False)
 CHECKER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192).with_structured_output(GroundingVerdict)
 WRITER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192)
 CLASSIFIER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192).with_structured_output(ClassifiedQuestion)
+PLANNER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192)
+ADVISOR = ChatOllama(model="qwen3:14b", temperature=0, reasoning=False, num_ctx=8192)
 
 
 def normalize(text: str) -> str:
@@ -147,11 +165,14 @@ def normalize(text: str) -> str:
 
 
 def classify(state:State) -> dict[str, Any]:
-    reply = CLASSIFIER.invoke(input=CLASSIFY_PROMPT.format(question=state["question"]))
+    reply = CLASSIFIER.invoke(input=CLASSIFY_PROMPT.format(question=state["prompt"]))
+    if reply.category == "rules":
+        return {"classification": reply.category,
+                "question": state["prompt"]}
     return {"classification": reply.category}
 
 
-def classify_edge(state:State) -> str:
+def route_after_classify(state:State) -> str:
     return state["classification"]
 
 
@@ -163,14 +184,27 @@ def rewrite(state: State) -> dict:
 def answer(state: State) -> dict:
     content = f"{state['question']}\n\nGame terms to use when searching: {state['search_terms']}"
     result = agent.invoke({"messages": [{"role": "user", "content": content}]})
-    return {"answer": result["messages"][-1].content, "messages": result["messages"]}
+    if state["classification"] == "rules":
+        return {"answer": result["messages"][-1].content, "messages": result["messages"]}
+    elif state["classification"] == "advice":
+        return {"additional_info": result["messages"][-1].content}
 
 
 def advice(state: State):
-    agent.system_prompt=ADVICE_PROMPT
-    content = f"{state['question']}\n\nGame terms to use when searching: {state['search_terms']}"
-    result = agent.invoke({"messages": [{"role": "user", "content": content}]})
-    return {"answer": result["messages"][-1].content, "messages": result["messages"]}
+    # content = f"{state['prompt']}\n\nAdditional information from searching the game database: {state['additional_info']}"
+    # result = advice_agent.invoke({"messages": [{"role": "user", "content": content}]})
+    # return {"answer": result["messages"][-1].content, "messages": result["messages"]}
+    reply = ADVISOR.invoke(input=ADVICE_PROMPT.format(prompt=state["prompt"], additional_info=state["additional_info"]))
+    return {"answer": reply.content.strip()}
+
+
+def plan(state: State) -> dict:
+    reply = PLANNER.invoke(input=PLAN_PROMPT.format(prompt=state["prompt"]))
+    return {"question": reply.content.strip()}
+
+
+def route_after_revise(state: State) -> str:
+    return "advice" if state["classification"] == "advice" else END
 
 
 def collect_evidence(messages: list) -> str:
@@ -181,7 +215,7 @@ def collect_evidence(messages: list) -> str:
 
 def check(state: State) -> dict:
     evidence = collect_evidence(state["messages"])
-    verdict = CHECKER.invoke(CHECK_PROMPT.format(evidence=evidence, answer=state["answer"]))
+    verdict = CHECKER.invoke(CHECK_PROMPT.format(evidence=evidence, answer=state["answer"] if state["classification"] == "rules" else state["additional_info"]))
     found = normalize(evidence)
     for c in verdict.claims:
         missing = [frag for frag in c.evidence if normalize(frag) not in found]
@@ -195,14 +229,20 @@ def revise(state: State) ->dict:
     reply=WRITER.invoke(REVISE_PROMPT.format(
         question = state["question"],
         evidence = collect_evidence(state["messages"]),
-        answer=state["answer"],
+        answer=state["answer"] if state["classification"] == "rules" else state["additional_info"],
         claims="; ".join(state["verdict"].unsupported_claims),
     ))
     return {"answer": reply.content}
 
 
 def route_after_check(state: State) -> str:
-    return END if state["verdict"].supported else "revise"
+    if not state["verdict"].supported:
+        return "revise"
+    return "advice" if state["classification"] == "advice" else END
+
+
+def other(state:State) -> dict:
+    return{"answer": "This is an unrelated question that I cannot answer. I am a chatbot used for topics about Heroes of Might and Magic Olden Era. Please ask me related question!"}
 
 
 workflow = StateGraph(State)
@@ -212,38 +252,49 @@ workflow.add_node("check", check)
 workflow.add_node("revise", revise)
 workflow.add_node("answer", answer)
 workflow.add_node("advice", advice)
+workflow.add_node("plan", plan)
+workflow.add_node("other", other)
 
 
 workflow.set_entry_point("classify")
-workflow.add_edge("classify","rewrite")
 workflow.add_conditional_edges(
-    "rewrite",
-    classify_edge,
+    "classify",
+    route_after_classify,
     {
-        "Rules": "answer",
-        "Advice": "advice",
-        "Other": "advice"
+        "rules": "rewrite",
+        "advice": "plan",
+        "other": "other"
     }
 )
-
+workflow.add_edge("plan","rewrite")
+workflow.add_edge("rewrite","answer")
 workflow.add_edge("answer","check")
-workflow.add_edge("advice","check")
 workflow.add_conditional_edges(
     "check",
     route_after_check,
     {
         END: END,
-        "revise": "revise"
+        "revise": "revise",
+        "advice": "advice"
     }
 )
-workflow.add_edge("revise",END)
+workflow.add_conditional_edges(
+    "revise",
+    route_after_revise,
+    {
+        END: END,
+        "advice": "advice"
+    }
+)
+workflow.add_edge("advice",END)
+workflow.add_edge("other",END)
 
 app = workflow.compile()
 
 
-def ask(question: str) -> None:
-    out = app.invoke({"question": question})
-    print(f"\n=== {question}\n  terms: {out['search_terms']}")
+def ask(prompt: str) -> None:
+    out = app.invoke({"prompt": prompt})
+    print(f"\n=== {prompt}\n  terms: {out['search_terms']}")
     for m in out["messages"]:
         if m.type == "ai" and m.tool_calls:
             for call in m.tool_calls:
