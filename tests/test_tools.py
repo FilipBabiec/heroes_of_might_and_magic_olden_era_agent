@@ -1,6 +1,7 @@
 import pytest
 from tools import query_units
 from tools import search_rules
+from tools import connect_read_only, fetch_spells
 
 
 def test_faction_filter():
@@ -86,8 +87,15 @@ def test_search_swift_strike():
     assert first["units"], "shared ability should list its units"
 
 
-def test_search_healing_water_levels():
-    spell = find_name(search_rules("restore HP of a friendly creature", n=5), "Healing Water")
+def test_spell_record_levels():
+    # Checks the spell record itself, not ranking: with the reranker, several heals
+    # (Rewind Death, Holy Ablution, ...) rightly rank above Healing Water.
+    con = connect_read_only()
+    try:
+        spell = fetch_spells(con, ["day_1_magic_healing_water"])["day_1_magic_healing_water"]
+    finally:
+        con.close()
+    assert spell["name"] == "Healing Water"
     assert [lvl["level"] for lvl in spell["levels"]] == [1, 2, 3, 4]
     assert spell["levels"][1]["change"] == "HP per Spell Power: 5 > 10."
 

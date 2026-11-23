@@ -16,6 +16,7 @@ from sentence_transformers import SentenceTransformer, util
 from raw_data_processing import PROCESSED_DIR, load_json
 from download_raw_data import version_key, save_json
 from create_sql_db import load_data
+from tools import get_model
 
 
 FACTION_MAPPINGS = {
@@ -47,8 +48,10 @@ def document_embeddings(model, model_id: str, docs: list[dict]) -> np.ndarray:
 
 
 def build_collection(docs: list[dict], patch:str):
-    # Downloads the model on the first run. Set HF_HUB_OFFLINE=1 to stay offline after that.
-    model = SentenceTransformer(MODEL_ID)
+    # The same model settings as the queries in tools.py (float32, CPU). Without an explicit
+    # dtype, transformers loads the model in its default bfloat16, and the documents and the
+    # queries no longer match. Downloads the model on the first run.
+    model = get_model()
     embeddings = document_embeddings(model, MODEL_ID, docs)
 
     if CHROMA_DIR.exists():
@@ -142,7 +145,7 @@ def build_documents(data: dict):
 
 def search_db(collection, question: str, n:int = 5, where:dict | None = None) -> list[dict]:
     assert collection.metadata["embedding_model"] == MODEL_ID, "collection was built with another model"
-    model = SentenceTransformer(MODEL_ID)
+    model = get_model()
     q = model.encode([question], prompt_name="query", normalize_embeddings=True)
     res = collection.query(query_embeddings=q.tolist(), n_results=n, where=where)
 

@@ -17,6 +17,36 @@ reranking, tool-calling agents, LangGraph workflows and MCP.
 
 ---
 
+## Results
+
+**Retrieval** (`eval_rerank.py`, 8 test questions; hit@3 = a correct document in the top 3)
+
+| | Embedding only | Embedding + reranker |
+|---|---|---|
+| hit@3, all questions | 4/8 | **5/8** |
+| hit@3, questions in game terms | 4/6 | 4/6 |
+| hit@3, questions in player slang | 0/2 | 1/2 |
+| Hardest case: *"What takes or copies buffs"* | rank 15 | **rank 1** |
+| Time per query (CPU) | 170 ms | 22.9 s |
+
+The reranker made one question worse (*"creature that takes no damage from spells"*: rank 1 → 6),
+and two questions are missed by both. In the pipeline, the `rewrite` node turns player slang
+into game terms before the search runs. The times were measured on a CPU; the reranker is the
+part that needs a GPU.
+
+**Grounding check** (`check_grounding.py`, 4 answers with a known verdict)
+
+| | Result |
+|---|---|
+| Answers given the right verdict (2 supported, 2 unsupported) | **4/4** |
+| Judgment caught: *"Hive's bonuses are more impactful than Temple's"* | flagged |
+| False claim caught: *"No creature can steal buffs"* | flagged |
+
+At the claim level the checker is stricter than it should be: in one case it flagged 6 correct
+claims, because the evidence it quoted spans a JSON line break (see Known limitations).
+
+---
+
 ## How it works
 
 ### Data
@@ -42,7 +72,7 @@ Each game patch gets its own folder, so a new patch can be added next to the old
 `search_rules` retrieves in two stages: an embedding search (Qwen3-Embedding-0.6B) narrows
 the ~790 documents to 30 candidates, then a cross-encoder (Qwen3-Reranker-0.6B) reads each
 candidate together with the question and reorders them. On the test questions, reranking
-moved the right answer from rank 14 to rank 1 for the hardest case.
+moved the right answer from rank 15 to rank 1 for the hardest case (see Results).
 
 ### The local pipeline (LangGraph)
 
