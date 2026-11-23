@@ -1,0 +1,24 @@
+# Top-level dependencies of the Olden Era assistant.
+# Exact versions of everything (including sub-dependencies) are in requirements-lock.txt.
+#
+# Install PyTorch FIRST, from the PyTorch index (see README, step 2).
+# If torch is not installed yet, sentence-transformers pulls in a default build.
+
+# Data download
+requests
+
+# Embeddings, reranking, vector database
+sentence-transformers>=6.0
+chromadb>=1.5
+
+# LLM, agent, graph
+langchain>=1.4.8
+langchain-ollama>=1.1.0
+langgraph>=1.2.19
+pydantic>=2
+
+# MCP server for Claude Desktop (mcp.server.mcpserver.MCPServer is new in mcp 2)
+mcp[cli]>=2.0
+
+# Tests
+pytest

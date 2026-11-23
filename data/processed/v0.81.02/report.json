@@ -1,0 +1,37 @@
+{
+  "units_without_text": [],
+  "abilities_of_unused_units": [
+    "dragon_1",
+    "dragon_upg_alt_1",
+    "avatar_unfrozen_passive_1",
+    "peasant_normal_passive_1"
+  ],
+  "abilities_without_text": [],
+  "unresolved_references": [],
+  "spells_without_text": [
+    "kara_darkness",
+    "kara_death",
+    "kara_mana",
+    "kara_silence",
+    "kara_speed",
+    "kara_weakness"
+  ],
+  "spells_without_levels": [
+    "kara_darkness",
+    "kara_death",
+    "kara_mana",
+    "kara_silence",
+    "kara_speed",
+    "kara_weakness",
+    "bonus_magic_astral_summon_4",
+    "bonus_magic_astral_summon_5",
+    "bonus_magic_astral_summon_nature_4",
+    "bonus_magic_astral_summon_nature_5",
+    "bonus_magic_astral_summon_unfrozen_4",
+    "bonus_magic_astral_summon_unfrozen_5"
+  ],
+  "artifacts_without_name": [
+    "campaign_M5_friend_item",
+    "campaign_empty_crystal_item"
+  ]
+}

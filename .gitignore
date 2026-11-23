@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Secrets
+.env
+
+# Data: everything is rebuilt by the pipeline, except the processed snapshot
+# the tests and CI run against (see README, "Build the data").
+data/*
+!data/processed/
+data/processed/*.tmp/

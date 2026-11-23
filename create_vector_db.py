@@ -47,8 +47,8 @@ def document_embeddings(model, model_id: str, docs: list[dict]) -> np.ndarray:
 
 
 def build_collection(docs: list[dict], patch:str):
-    model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B", local_files_only=True)
-    docs = json.loads(Path("data/processed/v0.81.02/documents.json").read_text(encoding="utf-8"))
+    # Downloads the model on the first run. Set HF_HUB_OFFLINE=1 to stay offline after that.
+    model = SentenceTransformer(MODEL_ID)
     embeddings = document_embeddings(model, MODEL_ID, docs)
 
     if CHROMA_DIR.exists():
@@ -142,7 +142,7 @@ def build_documents(data: dict):
 
 def search_db(collection, question: str, n:int = 5, where:dict | None = None) -> list[dict]:
     assert collection.metadata["embedding_model"] == MODEL_ID, "collection was built with another model"
-    model = SentenceTransformer(MODEL_ID, local_files_only=True)
+    model = SentenceTransformer(MODEL_ID)
     q = model.encode([question], prompt_name="query", normalize_embeddings=True)
     res = collection.query(query_embeddings=q.tolist(), n_results=n, where=where)
 

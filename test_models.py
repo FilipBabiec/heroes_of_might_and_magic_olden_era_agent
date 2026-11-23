@@ -66,13 +66,12 @@ def evaluate(model_id: str, query_kwargs: dict, docs: list[dict]) -> None:
     print()
 
 
-docs = json.loads(Path("data/processed/v0.81.02/documents.json").read_text(encoding="utf-8"))
-for label, (model_id, query_kwargs) in CANDIDATES.items():
-    print(label)
-    evaluate(model_id, query_kwargs, docs)
+def main() -> None:
+    docs = json.loads(Path("data/processed/v0.81.02/documents.json").read_text(encoding="utf-8"))
+    for label, (model_id, query_kwargs) in CANDIDATES.items():
+        print(label)
+        evaluate(model_id, query_kwargs, docs)
 
-# for entry in TEST_QUERIES:
-#     assert isinstance(entry, tuple) and len(entry) == 3, f"malformed test entry: {entry!r}"
 
 if __name__ == "__main__":
     main()

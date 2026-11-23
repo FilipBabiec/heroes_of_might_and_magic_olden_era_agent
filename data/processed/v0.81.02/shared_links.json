@@ -1,0 +1,630 @@
+[
+  {
+    "unit_id": "animated_armor",
+    "ability_id": "base_passive_steelskin_2"
+  },
+  {
+    "unit_id": "animated_armor",
+    "ability_id": "base_passive_evasive_2"
+  },
+  {
+    "unit_id": "animated_armor",
+    "ability_id": "base_passive_resistant_2"
+  },
+  {
+    "unit_id": "coatl",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "dragon_upg",
+    "ability_id": "base_passive_strike_reach_1"
+  },
+  {
+    "unit_id": "dragon_upg",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "dragon_upg",
+    "ability_id": "base_passive_immunity_magic_4"
+  },
+  {
+    "unit_id": "elf_tracker",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "elf_tracker",
+    "ability_id": "base_passive_alert"
+  },
+  {
+    "unit_id": "esquire",
+    "ability_id": "base_passive_evasive_0"
+  },
+  {
+    "unit_id": "esquire_upg",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "esquire_upg",
+    "ability_id": "base_passive_evasive_0"
+  },
+  {
+    "unit_id": "pixie",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "skeleton_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "sunlight_cavalry",
+    "ability_id": "base_passive_strike_pierce_1"
+  },
+  {
+    "unit_id": "sunlight_cavalry_upg_alt",
+    "ability_id": "base_passive_strike_pierce_2"
+  },
+  {
+    "unit_id": "aqualotl_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "crossbowman_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "crossbowman_upg",
+    "ability_id": "base_passive_double_strike_ranged_attack"
+  },
+  {
+    "unit_id": "halfling",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "halfling",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "halfling",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "hydra",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "hydra",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "lich_dragon",
+    "ability_id": "base_passive_strike_tri_reach_1"
+  },
+  {
+    "unit_id": "lich_dragon",
+    "ability_id": "base_passive_resistant_2"
+  },
+  {
+    "unit_id": "lightweaver",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "medusa",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "medusa",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "medusa_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "medusa_upg_alt",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "medusa_upg_alt",
+    "ability_id": "base_passive_countershot"
+  },
+  {
+    "unit_id": "phoenix",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "succubus",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "succubus",
+    "ability_id": "base_passive_quickness"
+  },
+  {
+    "unit_id": "godslayer_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "jaw_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "jaw_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "trick_demon",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "trick_demon_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "trick_demon_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "trick_demon_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "trick_demon_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "mech_guard",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "mech_guard",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "mech_guard",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "mech_guard",
+    "ability_id": "base_passive_resistant_3"
+  },
+  {
+    "unit_id": "hydra_upg",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "hydra_upg",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "hydra_upg_alt",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "hydra_upg_alt",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "olgoi_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "succubus_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "succubus_upg_alt",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "succubus_upg_alt",
+    "ability_id": "base_passive_quickness"
+  },
+  {
+    "unit_id": "unfrozen_cultist",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "unfrozen_cultist_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "angel",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "angel_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "angel_upg_alt",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "aqualotl",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "aqualotl_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "arbitrator",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "arbitrator_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "arbitrator_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "avatar_of_war",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "avatar_of_war_upg",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "black_dragon",
+    "ability_id": "base_passive_strike_reach_1"
+  },
+  {
+    "unit_id": "black_dragon",
+    "ability_id": "base_passive_immunity_magic_4"
+  },
+  {
+    "unit_id": "black_dragon_upg",
+    "ability_id": "base_passive_strike_reach_1"
+  },
+  {
+    "unit_id": "black_dragon_upg",
+    "ability_id": "base_passive_immunity_magic_5"
+  },
+  {
+    "unit_id": "black_dragon_upg_alt",
+    "ability_id": "base_passive_strike_reach_1"
+  },
+  {
+    "unit_id": "black_dragon_upg_alt",
+    "ability_id": "base_passive_immunity_magic_5"
+  },
+  {
+    "unit_id": "blade_dancer_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "blade_dancer_upg",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "blade_dancer_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "crossbowman",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "crossbowman_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "crossbowman_upg_alt",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "druid",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "druid_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "druid_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "eldritch_flyer_upg",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "elf_tracker_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "elf_tracker_upg",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "elf_tracker_upg",
+    "ability_id": "base_passive_alert"
+  },
+  {
+    "unit_id": "elf_tracker_upg_alt",
+    "ability_id": "base_passive_alert"
+  },
+  {
+    "unit_id": "ent",
+    "ability_id": "base_passive_strike_rumble_2"
+  },
+  {
+    "unit_id": "ent_upg",
+    "ability_id": "base_passive_strike_rumble_2"
+  },
+  {
+    "unit_id": "fairy_dragon",
+    "ability_id": "base_passive_immunity_magic_5"
+  },
+  {
+    "unit_id": "giant_frog",
+    "ability_id": "base_passive_immunity_magic_3"
+  },
+  {
+    "unit_id": "godslayer_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "graverobber",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "graverobber_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "graverobber_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "griffin",
+    "ability_id": "base_passive_aware_1"
+  },
+  {
+    "unit_id": "griffin_upg",
+    "ability_id": "base_passive_aware_2"
+  },
+  {
+    "unit_id": "griffin_upg_alt",
+    "ability_id": "base_passive_aware_1"
+  },
+  {
+    "unit_id": "hive_queen_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "hive_queen_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "hive_queen_upg_alt",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "inquisitor",
+    "ability_id": "base_passive_staunch_1"
+  },
+  {
+    "unit_id": "inquisitor",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "inquisitor_upg",
+    "ability_id": "base_passive_staunch_2"
+  },
+  {
+    "unit_id": "inquisitor_upg",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "inquisitor_upg_alt",
+    "ability_id": "base_passive_staunch_2"
+  },
+  {
+    "unit_id": "inquisitor_upg_alt",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "lesser_eldritch_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "lich",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "lich_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "lich_upg",
+    "ability_id": "common_attack_2"
+  },
+  {
+    "unit_id": "lich_upg",
+    "ability_id": "base_passive_strike_rumble_1"
+  },
+  {
+    "unit_id": "lich_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "lightweaver_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "lightweaver_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "locust",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "locust_upg",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "locust_upg",
+    "ability_id": "base_passive_alert"
+  },
+  {
+    "unit_id": "locust_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "locust_upg_alt",
+    "ability_id": "base_passive_double_strike"
+  },
+  {
+    "unit_id": "locust_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "medusa_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "medusa_upg",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "medusa_upg",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "olgoi_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "olgoi_upg_alt",
+    "ability_id": "common_attack_2"
+  },
+  {
+    "unit_id": "olgoi_upg_alt",
+    "ability_id": "base_passive_strike_rumble_1"
+  },
+  {
+    "unit_id": "olgoi_upg_alt",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "olgoi_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "pet",
+    "ability_id": "base_passive_steelskin_0"
+  },
+  {
+    "unit_id": "pet_upg",
+    "ability_id": "base_passive_steelskin_0"
+  },
+  {
+    "unit_id": "pet_upg_alt",
+    "ability_id": "base_passive_steelskin_0"
+  },
+  {
+    "unit_id": "phoenix_upg",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "phoenix_upg_alt",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "star_child",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "star_child",
+    "ability_id": "base_passive_strike_rumble_2"
+  },
+  {
+    "unit_id": "succubus_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "succubus_upg",
+    "ability_id": "base_passive_quickness"
+  },
+  {
+    "unit_id": "sunlight_cavalry_upg",
+    "ability_id": "base_passive_strike_pierce_2"
+  },
+  {
+    "unit_id": "trogl_upg_alt",
+    "ability_id": "base_passive_aware_1"
+  },
+  {
+    "unit_id": "twinkle_upg",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "unfrozen_cultist_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "unspeakable",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "unspeakable_upg",
+    "ability_id": "base_passive_strike_rumble_2"
+  },
+  {
+    "unit_id": "unspeakable_upg",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "unspeakable_upg_alt",
+    "ability_id": "base_passive_absolute_resistance"
+  },
+  {
+    "unit_id": "vampire_upg",
+    "ability_id": "base_passive_noncounter"
+  },
+  {
+    "unit_id": "vampire_upg_alt",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "wasp_upg",
+    "ability_id": "demon_passive_1"
+  },
+  {
+    "unit_id": "wasp_upg_alt",
+    "ability_id": "demon_passive_2"
+  },
+  {
+    "unit_id": "angel_upg",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "angel_upg",
+    "ability_id": "base_passive_sharpshooter"
+  },
+  {
+    "unit_id": "angel_upg",
+    "ability_id": "base_passive_duelist"
+  },
+  {
+    "unit_id": "blade_dancer",
+    "ability_id": "common_attack_1"
+  },
+  {
+    "unit_id": "ent_upg_alt",
+    "ability_id": "base_passive_strike_rumble_2"
+  },
+  {
+    "unit_id": "lesser_eldritch_upg_alt",
+    "ability_id": "base_passive_strike_swipe_1"
+  },
+  {
+    "unit_id": "minos_upg",
+    "ability_id": "base_passive_alert"
+  }
+]

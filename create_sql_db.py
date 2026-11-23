@@ -116,9 +116,9 @@ def run_sql(con: sqlite3.Connection):
         print(dict(row))
 
 def main() -> None:
-    # data = load_data()
-    # build_database(data)
-    run_sql(sqlite3.connect(DB_PATH))
+    data = load_data()
+    build_database(data)
+    print(f"Built {DB_PATH}")
 
 if __name__ == "__main__":
     main()

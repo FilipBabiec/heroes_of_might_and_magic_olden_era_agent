@@ -1,5 +1,7 @@
 # Heroes of Might and Magic: Olden Era assistant
 
+[![tests](https://github.com/FilipBabiec/heroes_of_might_and_magic_olden_era_agent/actions/workflows/tests.yml/badge.svg)](https://github.com/FilipBabiec/heroes_of_might_and_magic_olden_era_agent/actions/workflows/tests.yml)
+
 A question-answering assistant for the game data of *Heroes of Might and Magic: Olden Era*:
 units, abilities, spells and artifacts. It answers questions like *"Which units can't be
 counterattacked?"* or *"Can any creature steal buffs from enemies?"* from the official
@@ -72,7 +74,7 @@ flowchart LR
 
 ## Requirements
 
-- Windows (tested), Python 3.14
+- Python 3.14. Tested on Windows; Linux is tested in CI and runs through Docker
 - NVIDIA GPU recommended (tested with 8 GB). Without one, reranking takes about 30 s per search instead of about 1 s.
 - [Ollama](https://ollama.com) with `qwen3:8b`, for the local pipeline
 - [Claude Desktop](https://claude.ai/download), for the MCP server
@@ -134,6 +136,10 @@ python create_vector_db.py      # -> data/chroma/              (downloads the em
 When the game gets a new patch, run all four again. The download creates a new
 `v<patch>` folder, and the later steps use the newest one.
 
+`data/processed/v0.81.02/` is committed: the tests check known values from that patch, so
+CI and Docker build the databases from this snapshot instead of downloading from the wiki.
+To build only from the snapshot, run the last two steps.
+
 ---
 
 ## Use it
@@ -150,12 +156,18 @@ In Claude Desktop: **Settings → Developer → Edit Config**, then add the serv
       "command": "C:\\path\\to\\project\\.venv\\Scripts\\python.exe",
       "args": ["C:\\path\\to\\project\\mcp_server.py"],
       "env": { "HF_HUB_OFFLINE": "1" }
+    },
+    "heroes-olden-era-chatbot": {
+      "command": "C:\\path\\to\\project\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\project\\chatbot_mcp.py"],
+      "env": { "HF_HUB_OFFLINE": "1" }
     }
   }
 }
 ```
 
-Restart Claude Desktop fully (also from the system tray). The server offers three tools:
+Restart Claude Desktop fully (also from the system tray). `mcp_server.py` offers the two
+game-data tools, `chatbot_mcp.py` offers the whole pipeline as `ask_hoe`:
 
 | Tool | Speed | Notes |
 |---|---|---|
@@ -179,6 +191,26 @@ python run_graph.py "Which units can raise dead units?"
 It prints the path through the graph, the time per node, the tool calls, the checked claims
 and the final answer.
 
+### With Docker (Linux, macOS or Windows)
+
+The image builds both databases and contains both models, so it runs offline. It uses the CPU.
+
+```bash
+docker build -t hoe-agent .
+docker run --rm hoe-agent pytest                  # the tests
+docker run --rm -i hoe-agent                      # the MCP server (game-data tools) on stdio
+```
+
+The LangGraph pipeline needs Ollama, running on the host:
+
+```bash
+docker run --rm -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  hoe-agent python run_graph.py "Which units can raise dead units?"
+```
+
+On Linux, add `--add-host=host.docker.internal:host-gateway`. To use the image from Claude
+Desktop, set `"command": "docker"` and `"args": ["run", "--rm", "-i", "hoe-agent"]`.
+
 ---
 
 ## Tests and evaluation
@@ -188,6 +220,10 @@ pytest                     # tool tests: known unit values, filters, invalid inp
 python eval_rerank.py      # retrieval: hit@3 with and without reranking, time per query
 python check_grounding.py  # the claim checker on cases with known verdicts
 ```
+
+GitHub Actions runs `pytest` on every push, on Linux with the CPU build of PyTorch, after
+building both databases from the data snapshot. A second workflow builds the Docker image
+and runs the tests inside it when the Dockerfile or the dependencies change.
 
 ---
 
@@ -202,11 +238,13 @@ python check_grounding.py  # the claim checker on cases with known verdicts
 | `tools.py` | `query_units`, `search_rules` and model loading |
 | `agent.py` | The tool-calling agent (`create_agent` + ChatOllama) |
 | `graph.py` | The LangGraph pipeline |
-| `mcp_server.py` | The MCP server for Claude Desktop |
+| `mcp_server.py` | MCP server with the game-data tools |
+| `chatbot_mcp.py` | MCP server with the whole pipeline (`ask_hoe`) |
 | `run_graph.py` | Runs questions through the graph, node by node |
 | `tests/test_tools.py` | Tests for the tools |
 | `eval_rerank.py`, `test_models.py` | Retrieval evaluation and embedding model comparison |
 | `check_grounding.py` | Tests for the claim checker |
+| `Dockerfile`, `.github/workflows/` | The container image and the CI workflows |
 
 ---
 

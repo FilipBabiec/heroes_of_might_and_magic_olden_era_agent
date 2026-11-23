@@ -3,20 +3,16 @@ import sys
 from mcp.server.mcpserver import MCPServer
 
 import tools as t
-import graph as g
 
+# The game-data tools. The whole pipeline (ask_hoe) is served by chatbot_mcp.py.
 mcp = MCPServer("heroes-olden-era")
-mcp_agent = MCPServer("heroes-olden-era-chatbot")
 
 mcp.tool()(t.query_units)
 mcp.tool()(t.search_rules)
-
-mcp_agent.tool()(g.ask)
 
 if __name__ == "__main__":
     t.get_reranker()
     t.get_model()
     t.get_collection()
-    print("heroes-olden-era MCP server is ready!")
+    print("heroes-olden-era MCP server is ready!", file=sys.stderr)  # stdout is the MCP channel
     mcp.run()
-    mcp_agent.run()

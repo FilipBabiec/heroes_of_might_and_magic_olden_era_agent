@@ -20,5 +20,5 @@ if __name__ == "__main__":
     t.get_reranker()
     t.get_model()
     t.get_collection()
-    print("heroes-olden-era chatbot MCP server is ready!")
+    print("heroes-olden-era chatbot MCP server is ready!", file=sys.stderr)  # stdout is the MCP channel
     mcp.run()
