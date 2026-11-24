@@ -22,10 +22,11 @@ COLUMNS = ("id, name, faction, tier, hp, offence, defence, damage_min, damage_ma
            "luck, morale, num_counters, creature_type, movement_name, attack_type, "
            "gold_cost, wood_cost, ore_cost, mercury_cost, dust_cost, crystal_cost, gemstone_cost")
 FACTION_DISPLAY = {unit_id: name.capitalize() for name, unit_id in FACTION_IDS.items()}
-DB_PATH = "data/hoe.sqlite"
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "data" / "hoe.sqlite"
 NO_TEXT = "No description available in the game data."
 MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
-CHROMA_DIR = Path("data/chroma")
+CHROMA_DIR = BASE_DIR / "data" / "chroma"
 COLLECTION = "hoe_rules"
 RERANKER_ID = "Qwen/Qwen3-Reranker-0.6B"
 RERANK_INSTRUCTION = ("Given a player's question about the game Heroes of Might and Magic: Olden Era, "
@@ -139,7 +140,7 @@ def query_units(
     upgraded_only: bool = False,
     max_gold_cost: int | None = None
 ) -> list[dict]:
-    """List or rank units by faction, tier range and a stat. Use get_details for one specific unit."""
+    """List or rank units by faction, tier range and a stat."""
     check_choice("faction", faction, get_args(Faction))
     check_choice("sort_by", sort_by, get_args(SortField))
     check_choice("move_type", move_type, get_args(MoveType))

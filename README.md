@@ -1,102 +1,304 @@
-# HOE Agent
+# Heroes of Might and Magic: Olden Era assistant
 
-A learning project: an AI advisor for **Heroes of Might and Magic: Olden Era** that answers questions about units, spells, artifacts and factions while you play.
+[![tests](https://github.com/FilipBabiec/heroes_of_might_and_magic_olden_era_agent/actions/workflows/tests.yml/badge.svg)](https://github.com/FilipBabiec/heroes_of_might_and_magic_olden_era_agent/actions/workflows/tests.yml)
 
-The goal is to learn RAG and agent design on a small, real dataset: when to use SQL vs. semantic search, how to give an agent tools, how to evaluate its answers, and how to expose tools through MCP.
+A question-answering assistant for the game data of *Heroes of Might and Magic: Olden Era*:
+units, abilities, spells and artifacts. It answers questions like *"Which units can't be
+counterattacked?"* or *"Can any creature steal buffs from enemies?"* from the official
+game data, not from a model's memory.
 
-> **Status:** early development. Sections marked *(planned)* are not built yet.
+It can be used in two ways:
 
-## What it does
+- **In Claude Desktop, through MCP.** A local MCP server offers the game-data tools to Claude.
+- **As a local pipeline** (LangGraph + Ollama) that runs entirely on your own computer.
 
-Ask things like:
+This is a learning project: it covers data processing, SQL, embeddings, retrieval with
+reranking, tool-calling agents, LangGraph workflows and MCP.
 
-- "Which tier IV unit has the most HP?" → answered with SQL over unit stats
-- "Which units can't be counterattacked?" → answered with semantic search over ability descriptions
-- "Show me everything about the Black Dragon." → exact lookup by name
+---
 
-Every answer cites the table row or description it came from.
+## Results
 
-## Architecture
+**Retrieval** (`eval_rerank.py`, 8 test questions; hit@3 = a correct document in the top 3)
+
+| | Embedding only | Embedding + reranker |
+|---|---|---|
+| hit@3, all questions | 4/8 | **5/8** |
+| hit@3, questions in game terms | 4/6 | 4/6 |
+| hit@3, questions in player slang | 0/2 | 1/2 |
+| Hardest case: *"What takes or copies buffs"* | rank 15 | **rank 1** |
+| Time per query (CPU) | 170 ms | 22.9 s |
+
+The reranker made one question worse (*"creature that takes no damage from spells"*: rank 1 → 6),
+and two questions are missed by both. In the pipeline, the `rewrite` node turns player slang
+into game terms before the search runs. The times were measured on a CPU; the reranker is the
+part that needs a GPU.
+
+**Grounding check** (`check_grounding.py`, 4 answers with a known verdict)
+
+| | Result |
+|---|---|
+| Answers given the right verdict (2 supported, 2 unsupported) | **4/4** |
+| Judgment caught: *"Hive's bonuses are more impactful than Temple's"* | flagged |
+| False claim caught: *"No creature can steal buffs"* | flagged |
+
+At the claim level the checker is stricter than it should be: in one case it flagged 6 correct
+claims, because the evidence it quoted spans a JSON line break (see Known limitations).
+
+---
+
+## How it works
+
+### Data
 
 ```
-Wiki Cargo export (JSON)
-        │  download.py (cached locally)
-        ▼
-   data/raw/*.json
-        │
-        ├──► SQLite   ── numeric stats (HP, attack, initiative, cost, tier)
-        └──► Chroma   ── text (ability, spell, artifact, skill descriptions)
-                 │
-                 ▼
-     Agent with three tools
-       • query_units   – filter/sort stats with SQL
-       • search_rules  – semantic search with metadata filters (type, faction)
-       • get_details   – exact lookup of one unit, spell or artifact
-                 │
-                 ▼
-     MCP server ──► Claude Desktop or any other MCP client   (planned)
+Wiki (Cargo API) ──download──> data/raw/v<patch>/        raw JSON per table, plus a manifest
+                 ──process───> data/processed/v<patch>/  cleaned, joined with the English text
+                 ──build─────> data/hoe.sqlite            structured data: stats, costs, levels
+                             > data/chroma/               one embedding per ability, spell, artifact
 ```
 
-**Why two stores:** numeric questions ("highest HP", "cheapest tier VI") need exact filtering and sorting, which semantic search cannot do reliably. Meaning-based questions ("spells that help against undead") are what embeddings are good at.
+The data comes from the official wiki's Cargo tables
+([wiki.hoodedhorse.com](https://wiki.hoodedhorse.com/Heroes_of_Might_and_Magic_Olden_Era)).
+Each game patch gets its own folder, so a new patch can be added next to the old one.
 
-## Data
+### Tools
 
-Game data comes from the [Heroes of Might and Magic: Olden Era Official Wiki](https://wiki.hoodedhorse.com/Heroes_of_Might_and_Magic_Olden_Era/Main_Page), which imports it from the game files into [Cargo tables](https://wiki.hoodedhorse.com/Heroes_of_Might_and_Magic_Olden_Era/Special:CargoTables). The download script uses the wiki's `Special:CargoExport` endpoint.
+| Tool | What it does | Backed by |
+|---|---|---|
+| `query_units` | Filter and sort units by faction, tier and stats | SQLite |
+| `search_rules` | Find abilities, spells and artifacts whose effect matches a question | Chroma + reranker, details from SQLite |
 
-Tables used: `Unit`, `UnitAbilityActive`, `UnitAbilityPassive`, `Spell`, `Artifact`, `Faction`, `Translation` (English only).
+`search_rules` retrieves in two stages: an embedding search (Qwen3-Embedding-0.6B) narrows
+the ~790 documents to 30 candidates, then a cross-encoder (Qwen3-Reranker-0.6B) reads each
+candidate together with the question and reorders them. On the test questions, reranking
+moved the right answer from rank 15 to rank 1 for the hardest case (see Results).
 
-- Raw downloads go to `data/raw/` and are **not committed**. Run the download script to recreate them.
-- A small pinned sample lives in `tests/fixtures/` so tests do not break when a game patch changes the live data.
+### The local pipeline (LangGraph)
 
-**License of the data:** wiki content is available under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Files in `tests/fixtures/` are derived from it and are distributed under the same license. Heroes of Might and Magic and Olden Era are trademarks of their respective owners. This is an unofficial, non-commercial fan project.
+```mermaid
+flowchart LR
+    START --> classify
+    classify -- rules --> rewrite
+    classify -- advice --> plan --> rewrite
+    classify -- other --> other --> END
+    rewrite --> answer --> check
+    check -- supported, rules --> END
+    check -- supported, advice --> advice
+    check -- unsupported --> revise
+    revise -- rules --> END
+    revise -- advice --> advice --> END
+```
+
+| Node | Job |
+|---|---|
+| `classify` | Sorts the question: facts (`rules`), opinion or strategy (`advice`), or off-topic (`other`) |
+| `plan` | For advice questions: lists the facts needed |
+| `rewrite` | Translates player slang into the game's terms ("buff" → "positive effect") |
+| `answer` | A tool-calling agent that collects the facts |
+| `check` | Splits the answer into single claims and checks each one against the tool results |
+| `revise` | Removes or corrects unsupported claims |
+| `advice` | Writes an opinion based only on the verified facts, labeled as an opinion |
+
+---
+
+## Requirements
+
+- Python 3.14. Tested on Windows; Linux is tested in CI and runs through Docker
+- NVIDIA GPU recommended (tested with 8 GB). Without one, reranking takes about 30 s per search instead of about 1 s.
+- [Ollama](https://ollama.com) with `qwen3:8b`, for the local pipeline
+- [Claude Desktop](https://claude.ai/download), for the MCP server
+
+---
+
+## Setup
+
+**1. Create a virtual environment**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+**2. Install PyTorch with CUDA (before the other packages)**
+
+The default `pip install torch` on Windows installs a CPU-only build. Get the exact command
+for your CUDA version from [pytorch.org](https://pytorch.org/get-started/locally/)
+(Stable, Windows, Pip). It looks like this:
+
+```powershell
+pip install torch --index-url https://download.pytorch.org/whl/cu1xx
+```
+
+Check it:
+
+```powershell
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+```
+
+**3. Install the rest**
+
+```powershell
+pip install -r requirements.txt
+```
+
+To reproduce the exact tested environment, use `requirements-lock.txt` instead.
+
+**4. Pull the local model** (only for the local pipeline)
+
+```powershell
+ollama pull qwen3:8b
+```
+
+---
+
+## Build the data
+
+Run these in order. Each step reads the previous step's output.
+
+```powershell
+python download_raw_data.py     # wiki -> data/raw/v<patch>/   (skips a patch that is already downloaded)
+python raw_data_processing.py   # -> data/processed/v<patch>/  (prints a summary and checks invariants)
+python create_sql_db.py         # -> data/hoe.sqlite
+python create_vector_db.py      # -> data/chroma/              (downloads the embedding model on first run)
+```
+
+When the game gets a new patch, run all four again. The download creates a new
+`v<patch>` folder, and the later steps use the newest one.
+
+`data/processed/v0.81.02/` is committed: the tests check known values from that patch, so
+CI and Docker build the databases from this snapshot instead of downloading from the wiki.
+To build only from the snapshot, run the last two steps.
+
+---
+
+## Use it
+
+### In Claude Desktop (MCP)
+
+In Claude Desktop: **Settings → Developer → Edit Config**, then add the server to
+`claude_desktop_config.json` (use your own paths):
+
+```json
+{
+  "mcpServers": {
+    "heroes-olden-era": {
+      "command": "C:\\path\\to\\project\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\project\\mcp_server.py"],
+      "env": { "HF_HUB_OFFLINE": "1" }
+    },
+    "heroes-olden-era-chatbot": {
+      "command": "C:\\path\\to\\project\\.venv\\Scripts\\python.exe",
+      "args": ["C:\\path\\to\\project\\chatbot_mcp.py"],
+      "env": { "HF_HUB_OFFLINE": "1" }
+    }
+  }
+}
+```
+
+Restart Claude Desktop fully (also from the system tray). `mcp_server.py` offers the two
+game-data tools, `chatbot_mcp.py` offers the whole pipeline as `ask_hoe`:
+
+| Tool | Speed | Notes |
+|---|---|---|
+| `query_units` | milliseconds | Unit stats from SQLite |
+| `search_rules` | about 1 s | Rules search with reranking |
+| `ask_hoe` | 30 to 90 s | Runs the whole local pipeline. Ollama must be running |
+
+`HF_HUB_OFFLINE=1` skips the online checks for the Hugging Face models. Set it only after
+`create_vector_db.py` and one search have downloaded both models.
+
+To test the server without Claude Desktop: `mcp dev mcp_server.py` opens the MCP Inspector
+in the browser (needs Node.js).
+
+### Locally (LangGraph + Ollama)
+
+```powershell
+python run_graph.py                                    # the built-in test questions
+python run_graph.py "Which units can raise dead units?"
+```
+
+It prints the path through the graph, the time per node, the tool calls, the checked claims
+and the final answer.
+
+### With Docker (Linux, macOS or Windows)
+
+The image builds both databases and contains both models, so it runs offline. It uses the CPU.
+
+```bash
+docker build -t hoe-agent .
+docker run --rm hoe-agent pytest                  # the tests
+docker run --rm -i hoe-agent                      # the MCP server (game-data tools) on stdio
+```
+
+The LangGraph pipeline needs Ollama, running on the host:
+
+```bash
+docker run --rm -e OLLAMA_HOST=http://host.docker.internal:11434 \
+  hoe-agent python run_graph.py "Which units can raise dead units?"
+```
+
+On Linux, add `--add-host=host.docker.internal:host-gateway`. To use the image from Claude
+Desktop, set `"command": "docker"` and `"args": ["run", "--rm", "-i", "hoe-agent"]`.
+
+---
+
+## Tests and evaluation
+
+```powershell
+pytest                     # tool tests: known unit values, filters, invalid inputs
+python eval_rerank.py      # retrieval: hit@3 with and without reranking, time per query
+python check_grounding.py  # the claim checker on cases with known verdicts
+```
+
+GitHub Actions runs `pytest` on every push, on Linux with the CPU build of PyTorch, after
+building both databases from the data snapshot. A second workflow builds the Docker image
+and runs the tests inside it when the Dockerfile or the dependencies change.
+
+---
 
 ## Project structure
 
-```
-hoe-agent/
-├── src/hoe_agent/
-│   ├── download.py      # fetch Cargo tables → data/raw/
-│   ├── build_sql.py     # raw JSON → SQLite        (planned)
-│   ├── build_vectors.py # descriptions → Chroma    (planned)
-│   ├── tools.py         # query_units, search_rules, get_details (planned)
-│   ├── agent.py         # agent loop                (planned)
-│   └── mcp_server.py    # MCP server                (planned)
-├── tests/
-│   ├── fixtures/        # pinned data sample (CC BY-SA 4.0)
-│   └── eval_questions.yaml  # questions with expected answers (planned)
-├── data/                # generated, git-ignored
-└── README.md
-```
-
-## Getting started
-
-```bash
-git clone https://github.com/FilipBabiec/<repo-name>.git
-cd <repo-name>
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-python -m hoe_agent.download     # downloads data to data/raw/
-```
-
-## Roadmap
-
-- [ ] Download and cache Cargo tables, write a manifest (timestamp, row counts)
-- [ ] Clean descriptions (wiki markup, placeholders) and build SQLite
-- [ ] Embed descriptions into Chroma with metadata (type, faction, tier)
-- [ ] Implement the three tools and test each one on its own
-- [ ] Agent loop with cited answers; log tokens and cost per question
-- [ ] Evaluation set with expected answers taken from the data tables
-- [ ] MCP server, connected to Claude Desktop
-
-## What I'm learning
-
-| Concept | Where it shows up |
+| File | Purpose |
 |---|---|
-| API calls, tokens, cost | Token and cost logging per question; local vs. cloud model comparison |
-| Prompt templates, few-shot | Answer prompt with an example of a cited answer |
-| Chunking, embeddings, Chroma | One description = one chunk, with metadata filters |
-| Tool calling | `query_units`, `search_rules`, `get_details` |
-| Evaluation | Fixed question set checked against the data tables |
-| MCP | Same tools usable from the agent and from Claude Desktop |
+| `download_raw_data.py` | Downloads the Cargo tables for the current patch |
+| `raw_data_processing.py` | Type conversion, text cleanup, joins, invariant checks |
+| `create_sql_db.py` | Builds the SQLite database |
+| `create_vector_db.py` | Builds the documents and embeddings, fills Chroma |
+| `tools.py` | `query_units`, `search_rules` and model loading |
+| `agent.py` | The tool-calling agent (`create_agent` + ChatOllama) |
+| `graph.py` | The LangGraph pipeline |
+| `mcp_server.py` | MCP server with the game-data tools |
+| `chatbot_mcp.py` | MCP server with the whole pipeline (`ask_hoe`) |
+| `run_graph.py` | Runs questions through the graph, node by node |
+| `tests/test_tools.py` | Tests for the tools |
+| `eval_rerank.py`, `test_models.py` | Retrieval evaluation and embedding model comparison |
+| `check_grounding.py` | Tests for the claim checker |
+| `Dockerfile`, `.github/workflows/` | The container image and the CI workflows |
+
+---
+
+## Known limitations
+
+- **Data coverage:** units, abilities, spells and artifacts only. No heroes, hero skills or buildings.
+- **Attack type and movement filters** are not implemented in `query_units` yet, so questions
+  like "Which Temple units fly?" are answered incompletely.
+- **The local 8B model** sometimes ignores the rewritten search terms. On the advice path it
+  can describe the tools instead of calling them, so the advice then has no facts behind it.
+- **The claim checker** can flag correct claims: rankings derived from a sorted list,
+  statements limited to "the search results", and quotes that span JSON line breaks.
+  It cannot verify which unit a number belongs to.
+- **The opinions** are reasoning over the retrieved stats, not game experience. The model
+  knows little about Olden Era strategy.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Claude Desktop shows the server as failed | Something wrote to stdout. In an MCP server, stdout is the protocol channel: use `print(..., file=sys.stderr)` |
+| Database or Chroma not found when started from Claude Desktop | Relative paths. Build paths from `Path(__file__).resolve().parent` |
+| Reranking takes 30+ s | PyTorch is the CPU-only build (`torch.cuda.is_available()` is `False`), or the model was loaded in bfloat16 on the CPU |
+| Every pipeline step takes several seconds | Ollama reloads the model when `num_ctx` differs between calls. Use the same value everywhere |
+| Generation suddenly slow | Not enough GPU memory: `ollama ps` shows part of the model on the CPU. Close other GPU users |

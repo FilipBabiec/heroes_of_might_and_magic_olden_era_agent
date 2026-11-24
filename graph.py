@@ -148,7 +148,6 @@ class State(TypedDict, total=False):
     answer: str
     messages: list
     verdict: GroundingVerdict
-    additional_info: str
 
 
 REWRITER = ChatOllama(model="qwen3:8b",temperature=0,reasoning=False)
@@ -156,7 +155,7 @@ CHECKER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8
 WRITER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192)
 CLASSIFIER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192).with_structured_output(ClassifiedQuestion)
 PLANNER = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192)
-ADVISOR = ChatOllama(model="qwen3:14b", temperature=0, reasoning=False, num_ctx=8192)
+ADVISOR = ChatOllama(model="qwen3:8b", temperature=0, reasoning=False, num_ctx=8192)
 
 
 def normalize(text: str) -> str:
@@ -181,21 +180,16 @@ def rewrite(state: State) -> dict:
     return {"search_terms": reply.content.strip()}
 
 
+def advice(state: State) -> dict:
+    facts = state["answer"]  # already checked, and revised if needed
+    reply = ADVISOR.invoke(ADVICE_PROMPT.format(prompt=state["prompt"], additional_info=facts))
+    return {"answer": f"{facts}\n\n**My opinion** (based on the facts above, not game data):\n{reply.content.strip()}"}
+
+
 def answer(state: State) -> dict:
     content = f"{state['question']}\n\nGame terms to use when searching: {state['search_terms']}"
     result = agent.invoke({"messages": [{"role": "user", "content": content}]})
-    if state["classification"] == "rules":
-        return {"answer": result["messages"][-1].content, "messages": result["messages"]}
-    elif state["classification"] == "advice":
-        return {"additional_info": result["messages"][-1].content}
-
-
-def advice(state: State):
-    # content = f"{state['prompt']}\n\nAdditional information from searching the game database: {state['additional_info']}"
-    # result = advice_agent.invoke({"messages": [{"role": "user", "content": content}]})
-    # return {"answer": result["messages"][-1].content, "messages": result["messages"]}
-    reply = ADVISOR.invoke(input=ADVICE_PROMPT.format(prompt=state["prompt"], additional_info=state["additional_info"]))
-    return {"answer": reply.content.strip()}
+    return {"answer": result["messages"][-1].content, "messages": result["messages"]}
 
 
 def plan(state: State) -> dict:
@@ -215,7 +209,7 @@ def collect_evidence(messages: list) -> str:
 
 def check(state: State) -> dict:
     evidence = collect_evidence(state["messages"])
-    verdict = CHECKER.invoke(CHECK_PROMPT.format(evidence=evidence, answer=state["answer"] if state["classification"] == "rules" else state["additional_info"]))
+    verdict = CHECKER.invoke(CHECK_PROMPT.format(evidence=evidence, answer=state["answer"]))
     found = normalize(evidence)
     for c in verdict.claims:
         missing = [frag for frag in c.evidence if normalize(frag) not in found]
@@ -229,7 +223,7 @@ def revise(state: State) ->dict:
     reply=WRITER.invoke(REVISE_PROMPT.format(
         question = state["question"],
         evidence = collect_evidence(state["messages"]),
-        answer=state["answer"] if state["classification"] == "rules" else state["additional_info"],
+        answer=state["answer"],
         claims="; ".join(state["verdict"].unsupported_claims),
     ))
     return {"answer": reply.content}
