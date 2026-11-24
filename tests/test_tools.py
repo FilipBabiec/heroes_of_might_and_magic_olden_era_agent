@@ -100,9 +100,11 @@ def test_spell_record_levels():
     assert spell["levels"][1]["change"] == "HP per Spell Power: 5 > 10."
 
 
-def test_search_ambassadors_sash():
-    artifact = find_name(search_rules("persuasion in diplomacy", n=5), "Ambassador's Sash")
-    assert artifact["description"] == "+10% to Persuasion Power in Diplomacy."
+def test_search_diplomacy_artifact():
+    # Ambassador's Sash and Diplomatic Gifts have the same effect, so either one is a right answer.
+    top = search_rules("persuasion in diplomacy", n=5)[:3]
+    assert any(r["type"] == "artifact" and r["description"] == "+10% to Persuasion Power in Diplomacy."
+               for r in top), f"no diplomacy artifact in top 3: {[r['name'] for r in top]}"
 
 
 @pytest.mark.parametrize("n", [0, 11])
